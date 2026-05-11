@@ -2,173 +2,107 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>H22 Studio Fitness</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>H22 Admin - Control Total</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(226, 232, 240, 0.8); }
-        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen">
+<body class="min-h-screen pb-10">
 
-    <header class="glass sticky top-0 z-50 px-6 py-4 flex justify-between items-center">
+    <header class="p-6 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-slate-900/80 backdrop-blur-md z-50">
         <div>
-            <h1 class="text-xl font-bold tracking-tight text-slate-900">H22 <span class="text-blue-600">STUDIO</span></h1>
-            <p id="user-role-label" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Portal Usuario</p>
+            <h1 class="text-xl font-bold text-blue-500 tracking-tight">H22 <span class="text-white">STUDIO ADMIN</span></h1>
+            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Gestión de Entrenamiento</p>
         </div>
-        <button onclick="toggleRole()" class="p-2 bg-slate-100 rounded-full text-slate-600 transition-transform active:rotate-180">
-            <i data-lucide="shield-check" class="w-5 h-5"></i>
+        <button onclick="cargarBaseDeDatos()" class="p-2 bg-slate-800 rounded-xl hover:bg-slate-700 transition-colors">
+            <i data-lucide="refresh-cw" class="w-5 h-5 text-blue-400"></i>
         </button>
     </header>
 
-    <main class="p-4 pb-32 max-w-md mx-auto">
+    <main class="p-4 max-w-2xl mx-auto space-y-6">
         
-        <div id="view-user" class="space-y-6">
-            <section class="bg-slate-900 rounded-3xl p-6 text-white shadow-xl">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-slate-400 text-xs font-bold uppercase tracking-wider">Mi Membresía</p>
-                        <h2 id="status-display" class="text-2xl font-bold mt-1">Estatus: Activo</h2>
-                    </div>
-                    <i data-lucide="credit-card" class="text-blue-500"></i>
-                </div>
-                <div class="mt-6 flex justify-between items-center">
-                    <div>
-                        <p class="text-[10px] text-slate-500 uppercase">Próximo Pago</p>
-                        <p id="expiry-display" class="text-sm font-semibold italic">Consultar con Instructor</p>
-                    </div>
-                    <button onclick="payWhatsapp()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors">
-                        PAGAR AQUÍ
-                    </button>
-                </div>
-            </section>
-
-            <div class="flex p-1 bg-slate-200 rounded-2xl">
-                <button onclick="switchCat('gym')" id="btn-gym" class="flex-1 py-2 rounded-xl font-bold text-xs bg-white text-blue-600 shadow-sm transition-all">CLASES GYM</button>
-                <button onclick="switchCat('nutri')" id="btn-nutri" class="flex-1 py-2 rounded-xl font-bold text-xs text-slate-500 transition-all">NUTRICIÓN</button>
-            </div>
-
-            <div id="schedule-container" class="space-y-3">
-                </div>
-        </div>
-
-        <div id="view-admin" class="hidden space-y-6">
-            <h2 class="text-2xl font-bold px-2">Panel Instructor</h2>
-            
-            <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                <p class="font-bold text-sm text-blue-600">Registrar Nuevo Alumno</p>
-                <input type="text" id="adm-name" placeholder="Nombre del Alumno" class="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <input type="tel" id="adm-phone" placeholder="WhatsApp (Ej. 521...)" class="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <div class="grid grid-cols-2 gap-2">
-                    <input type="date" id="adm-date" class="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none">
-                    <select id="adm-hour" class="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none">
-                        <option value="">Clase Fija</option>
-                        <option>05:00 AM</option><option>06:00 AM</option><option>07:00 AM</option><option>08:00 AM</option>
-                        <option>09:00 AM</option><option>04:00 PM</option><option>05:00 PM</option><option>06:00 PM</option>
-                        <option>07:00 PM</option><option>08:00 PM</option>
+        <section class="glass-card p-6 rounded-3xl">
+            <h2 class="text-sm font-bold mb-4 flex items-center gap-2 text-blue-400 uppercase tracking-wider">
+                <i data-lucide="user-plus" class="w-4 h-4"></i> Inscribir Nuevo Alumno
+            </h2>
+            <div class="space-y-3">
+                <input type="text" id="reg-nombre" placeholder="Nombre completo" class="w-full bg-slate-800/50 border border-slate-700 p-3 rounded-xl outline-none focus:border-blue-500">
+                <input type="tel" id="reg-wa" placeholder="WhatsApp (Ej: 5216621286485)" class="w-full bg-slate-800/50 border border-slate-700 p-3 rounded-xl outline-none focus:border-blue-500">
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="date" id="reg-fecha" class="bg-slate-800/50 border border-slate-700 p-3 rounded-xl outline-none text-slate-400 text-sm">
+                    <select id="reg-hora" class="bg-slate-800/50 border border-slate-700 p-3 rounded-xl outline-none text-sm text-slate-400">
+                        <option value="">Horario Fijo</option>
+                        <option>05:00 AM</option><option>06:00 AM</option><option>07:00 AM</option>
+                        <option>08:00 AM</option><option>09:00 AM</option><option>04:00 PM</option>
+                        <option>05:00 PM</option><option>06:00 PM</option><option>07:00 PM</option>
                     </select>
                 </div>
-                <button onclick="enrollNew()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 active:scale-95 transition-all">
+                <button onclick="guardarSocio()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-900/20">
                     GUARDAR EN GOOGLE SHEETS
                 </button>
             </div>
-        </div>
+        </section>
+
+        <section class="glass-card p-6 rounded-3xl border-l-4 border-l-amber-500">
+            <h2 class="text-sm font-bold mb-2 flex items-center gap-2 text-amber-400 uppercase tracking-wider">
+                <i data-lucide="megaphone" class="w-4 h-4"></i> Avisos Generales
+            </h2>
+            <textarea id="msg-masivo" placeholder="Escribe un aviso para todos los alumnos..." class="w-full bg-slate-800/50 border border-slate-700 p-3 rounded-xl text-sm mb-3 outline-none min-h-[80px]"></textarea>
+            <button onclick="enviarAvisoGeneral()" class="text-xs bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg font-bold transition-colors">
+                DIFUNDIR AVISO (WA)
+            </button>
+        </section>
+
+        <section class="space-y-4">
+            <div class="flex justify-between items-center px-2">
+                <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Lista de Socios Activos</h2>
+                <span id="contador-socios" class="text-xs bg-blue-600/20 text-blue-400 px-2 py-1 rounded-md font-bold">0</span>
+            </div>
+            
+            <div id="contenedor-socios" class="space-y-3">
+                <div class="text-center py-10 text-slate-600">
+                    <p class="text-sm">Conectando con la base de datos...</p>
+                </div>
+            </div>
+        </section>
 
     </main>
 
     <script>
-        // CONFIGURACIÓN PROPORCIONADA
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxA8Y_KmWWX4wFmG9pNMr4nbCaaCvPIbiJ1tcDO4HEq5srxu2P97iovwY3qyYavLSlW4w/exec";
-        const INSTRUCTOR_PHONE = "526621286485";
-        
-        let role = 'user';
-        let category = 'gym';
+        // CONFIGURACIÓN INTEGRADA
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXzDuRXinX2oXgZmR8ZSHIfBEiDbNgrDlNg-MENdmh9ffONM0Qhlei14R19dWQjwEHzw/exec";
+        const DATOS_BANCO = "\n📍 *Datos de Pago:*\nBanco: [TU BANCO]\nCuenta: [TU CUENTA]\nCLABE: [TU CLABE]\nDueño: H22 Studio";
 
-        const GYM_HOURS = ["05:00 AM", "06:00 AM", "07:00 AM", "08:00 AM", "09:00 AM", "04:00 PM", "05:00 PM", "06:00 PM", "07:00 PM", "08:00 PM"];
-        const NUTRI_HOURS = ["11:00 AM", "11:30 AM", "12:00 PM", "12:30 PM", "01:00 PM", "01:30 PM", "02:00 PM"];
-
-        function toggleRole() {
-            role = role === 'user' ? 'admin' : 'user';
-            document.getElementById('user-role-label').innerText = role === 'admin' ? 'Modo Instructor' : 'Portal Usuario';
-            document.getElementById('view-user').classList.toggle('hidden', role !== 'user');
-            document.getElementById('view-admin').classList.toggle('hidden', role !== 'admin');
-            render();
-        }
-
-        function switchCat(c) {
-            category = c;
-            document.getElementById('btn-gym').className = c === 'gym' ? 'flex-1 py-2 rounded-xl font-bold text-xs bg-white text-blue-600 shadow-sm transition-all' : 'flex-1 py-2 rounded-xl font-bold text-xs text-slate-500 transition-all';
-            document.getElementById('btn-nutri').className = c === 'nutri' ? 'flex-1 py-2 rounded-xl font-bold text-xs bg-white text-blue-600 shadow-sm transition-all' : 'flex-1 py-2 rounded-xl font-bold text-xs text-slate-500 transition-all';
-            render();
-        }
-
-        function render() {
-            const container = document.getElementById('schedule-container');
-            const hours = category === 'gym' ? GYM_HOURS : NUTRI_HOURS;
-            
-            container.innerHTML = hours.map(h => `
-                <div onclick="bookClass('${h}')" class="bg-white p-5 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm active:scale-[0.98] transition-all cursor-pointer">
-                    <div class="flex items-center gap-4">
-                        <div class="h-12 w-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                            ${h.split(':')[0]}
-                        </div>
-                        <div>
-                            <p class="font-bold text-slate-800">${category === 'gym' ? 'Training Session' : 'Cita Nutrición'}</p>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${h}</p>
-                        </div>
-                    </div>
-                    <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase">Libre</span>
-                </div>
-            `).join('');
-            lucide.createIcons();
-        }
-
-        async function enrollNew() {
-            const payload = {
-                accion: "inscribir",
-                nombre: document.getElementById('adm-name').value,
-                whatsapp: document.getElementById('adm-phone').value,
-                inicio: document.getElementById('adm-date').value,
-                horario: document.getElementById('adm-hour').value,
-                id: "H22-" + Math.floor(1000 + Math.random() * 9000)
-            };
-
-            if(!payload.nombre || !payload.whatsapp) return Swal.fire('Error', 'Nombre y WhatsApp son obligatorios', 'error');
-
-            Swal.fire({ title: 'Guardando...', didOpen: () => Swal.showLoading() });
-
+        async function cargarBaseDeDatos() {
             try {
-                await fetch(SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-                Swal.fire('¡Éxito!', 'Alumno registrado en Google Sheets', 'success');
-                document.getElementById('adm-name').value = "";
-                document.getElementById('adm-phone').value = "";
-            } catch (e) {
-                Swal.fire('Error', 'No se pudo conectar con el servidor', 'error');
-            }
-        }
+                const res = await fetch(SCRIPT_URL);
+                const data = await res.json();
+                const container = document.getElementById('contenedor-socios');
+                document.getElementById('contador-socios').innerText = data.length;
+                container.innerHTML = "";
 
-        function bookClass(h) {
-            Swal.fire({
-                title: '¿Confirmar Horario?',
-                text: `Se enviará un aviso al instructor para el horario de las ${h}`,
-                input: 'text',
-                inputPlaceholder: 'Tu nombre completo',
-                showCancelButton: true,
-                confirmButtonText: 'Confirmar vía WhatsApp',
-                confirmButtonColor: '#2563eb'
-            }).then((res) => {
-                if (res.isConfirmed && res.value) {
-                    const text = encodeURIComponent(`*H22 STUDIO FITNESS*\n\nHola, soy ${res.value}. Quiero confirmar mi lugar:\n📅 Fecha: ${new Date().toLocaleDateString()}\n⏰ Horario: ${h}\n🎯 Servicio: ${category === 'gym' ? 'Entrenamiento' : 'Nutrición'}`);
-                    window.open(`https://wa.me/${INSTRUCTOR_PHONE}?text=${text}`);
-                }
-            });
-        }
+                data.forEach(socio => {
+                    const hoy = new Date();
+                    const vence = new Date(socio.vencimiento);
+                    const diffDays = Math.ceil((vence - hoy) / (1000 * 60 * 60 * 24));
+                    
+                    let colorStatus = "text-emerald-400 bg-emerald-400/10 border-emerald-400/20";
+                    let botonCobro = "";
 
-        function payWhatsapp() {
-            const text = encodeURIComponent(`*H22 STUDIO FITNESS*\n\nHola Instructor, solicito los datos de transferencia para mi renovación de mensualidad.`);
-            window.open(`https://wa.me/${INSTRUCTOR_PHONE}?text=${text}`);
+                    if(diffDays <= 5) {
+                        colorStatus = "text-amber-400 bg-amber-400/10 border-amber-400/20";
+                        botonCobro = `<button onclick="cobrar('${socio.nombre}', '${socio.whatsapp}')" class="p-2 bg-amber-500 text-slate-900 rounded-lg shadow-lg shadow-amber-500/20"><i data-lucide="dollar-sign" class="w-4 h-4"></i></button>`;
+                    }
+                    if(diffDays <= 0) colorStatus = "text-red-400 bg-red-400/10 border-red-400/20";
+
+                    container.innerHTML += `
+                        <div class="glass-card p-4 rounded-2xl flex justify-between items-center transition-all hover:border-slate-600">
+                            <div class="space-y-1">
+                                <h3 class="font-bold text-white text-sm">${socio.nombre}</h3>
+                                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic">${socio.horarioFijo}</p>
