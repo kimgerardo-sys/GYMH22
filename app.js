@@ -150,7 +150,8 @@ document.getElementById('btn-show-add-user').addEventListener('click', () => {
 document.querySelectorAll('.btn-close-modal').forEach(btn => {
     btn.addEventListener('click', () => {
         modalAddUser.classList.add('hidden');
-        document.getElementById('modal-schedule').classList.add('hidden');
+        document.getElementById('modal-day-options').classList.add('hidden');
+        document.getElementById('modal-payment').classList.add('hidden');
     });
 });
 
@@ -185,11 +186,276 @@ document.getElementById('btn-save-user').addEventListener('click', async () => {
 });
 
 // Render Panel Usuario
+// Estado del calendario
+let calendarCurrentDate = new Date();
+
+// Helper para parsear fechas
+function parseDateString(dateStr) {
+    if (!dateStr) return new Date();
+    if (dateStr.includes('/')) {
+        const [d, m, y] = dateStr.split('/');
+        return new Date(`${y}-${m}-${d}T00:00:00`);
+    }
+    return new Date(`${dateStr}T00:00:00`);
+}
+
+// Helper para formatear fechas a YYYY-MM-DD
+function formatDateString(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+// Obtener el horario en texto limpio (ej: "7:00 AM" desde "L-V 7:00 AM")
+function getHourFromSchedule(schedStr) {
+    if (!schedStr) return '';
+    const parts = schedStr.split(' ');
+    if (parts.length > 1) {
+        return parts.slice(1).join(' ');
+    }
+    return schedStr;
+}
+
+// Obtener el estado del día para el usuario actual: 'fixed', 'canceled', 'rescheduled'
+function getUserDateStatus(dateStr) {
+    const userRes = (appData.reservas || []).filter(r => r.WhatsApp === currentUser.WhatsApp && r.Fecha === dateStr);
+    const hasRes = userRes.some(r => r.Tipo === 'Reserva');
+    if (hasRes) return 'rescheduled';
+    
+    const hasCancel = userRes.some(r => r.Tipo === 'Cancelacion');
+    if (hasCancel) return 'canceled';
+    
+    return 'fixed';
+}
+
+// Obtener la clase del usuario actual para un día específico
+function getUserScheduleForDate(dateStr) {
+    const status = getUserDateStatus(dateStr);
+    if (status === 'fixed') {
+        return getHourFromSchedule(currentUser.HorarioFijo);
+    } else if (status === 'rescheduled') {
+        const booking = (appData.reservas || []).find(r => r.WhatsApp === currentUser.WhatsApp && r.Fecha === dateStr && r.Tipo === 'Reserva');
+        return booking ? booking.Hora : null;
+    }
+    return null;
+}
+
+// Obtener cupo libre para un horario en una fecha
+function getRemainingSpots(dateStr, hourStr) {
+    let fixedCount = 0;
+    appData.usuarios.forEach(u => {
+        if (u.Rol === 'Admin') return;
+        const uHour = getHourFromSchedule(u.HorarioFijo);
+        if (uHour === hourStr) {
+            const uCancelled = (appData.reservas || []).some(r => r.WhatsApp === u.WhatsApp && r.Fecha === dateStr && r.Tipo === 'Cancelacion');
+            if (!uCancelled) {
+                fixedCount++;
+            }
+        }
+    });
+    
+    let reserveCount = 0;
+    (appData.reservas || []).forEach(r => {
+        if (r.Fecha === dateStr && r.Hora === hourStr && r.Tipo === 'Reserva') {
+            reserveCount++;
+        }
+    });
+    
+    const totalOccupied = fixedCount + reserveCount;
+    return Math.max(0, 8 - totalOccupied); // 6 + 2 extra = 8 cupo máximo
+}
+
+// Generar Calendario de 5 columnas (L-V)
+function renderCalendar() {
+    const calendarDays = document.getElementById('calendar-days');
+    const monthYearDisplay = document.getElementById('calendar-month-year');
+    calendarDays.innerHTML = '';
+    
+    const year = calendarCurrentDate.getFullYear();
+    const month = calendarCurrentDate.getMonth();
+    
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    monthYearDisplay.innerText = `${monthNames[month]} ${year}`;
+    
+    const firstDay = new Date(year, month, 1);
+    const firstDayOfWeek = firstDay.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+    
+    // Relleno para alinear el primer día en Lunes-Viernes
+    let padding = 0;
+    if (firstDayOfWeek >= 1 && firstDayOfWeek <= 5) {
+        padding = firstDayOfWeek - 1;
+    } else if (firstDayOfWeek === 0) {
+        padding = 0; // Inicia en lunes
+    } else if (firstDayOfWeek === 6) {
+        padding = 0; // Inicia en lunes
+    }
+    
+    for (let i = 0; i < padding; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day inactive';
+        calendarDays.appendChild(emptyCell);
+    }
+    
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const signupDate = parseDateString(currentUser.FechaIngreso);
+    const renewDate = parseDateString(currentUser.FechaProximoPago);
+    signupDate.setHours(0,0,0,0);
+    renewDate.setHours(0,0,0,0);
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    for (let d = 1; d <= lastDay; d++) {
+        const currentDate = new Date(year, month, d);
+        const dayOfWeek = currentDate.getDay();
+        
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            continue; // Saltar fines de semana
+        }
+        
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.innerText = d;
+        
+        const dateStr = formatDateString(currentDate);
+        const inActiveRange = currentDate >= signupDate && currentDate < renewDate;
+        
+        if (!inActiveRange) {
+            dayCell.classList.add('inactive');
+        } else {
+            if (currentDate.getTime() === today.getTime()) {
+                dayCell.classList.add('today');
+            }
+            
+            const classTime = getUserScheduleForDate(dateStr);
+            const status = getUserDateStatus(dateStr);
+            
+            if (status === 'fixed') {
+                dayCell.classList.add('fixed');
+            } else if (status === 'canceled') {
+                dayCell.classList.add('canceled');
+            } else if (status === 'rescheduled') {
+                dayCell.classList.add('rescheduled');
+            }
+            
+            dayCell.addEventListener('click', () => {
+                openDayModal(currentDate, dateStr, status, classTime);
+            });
+        }
+        
+        calendarDays.appendChild(dayCell);
+    }
+}
+
+// Abrir Modal de Opciones del Día
+function openDayModal(date, dateStr, status, classTime) {
+    const modal = document.getElementById('modal-day-options');
+    const title = document.getElementById('modal-day-title');
+    const info = document.getElementById('day-status-info');
+    const container = document.getElementById('day-actions-container');
+    
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    title.innerText = date.toLocaleDateString('es-ES', options);
+    
+    container.innerHTML = '';
+    
+    if (status === 'fixed') {
+        info.innerHTML = `Tienes programado tu horario fijo a las <strong style="color:var(--neon-green)">${classTime}</strong>.`;
+        container.innerHTML = `
+            <button class="btn-cancel" style="border-color:#ff4d4d; color:#ff4d4d;" onclick="cancelarClaseDia('${dateStr}', '${classTime}', 'fixed')">
+                Liberar/Cancelar Clase de Hoy
+            </button>
+        `;
+    } else if (status === 'rescheduled') {
+        info.innerHTML = `Tienes una clase reagendada a las <strong style="color:var(--neon-green)">${classTime}</strong>.`;
+        container.innerHTML = `
+            <button class="btn-cancel" style="border-color:#ff4d4d; color:#ff4d4d;" onclick="cancelarClaseDia('${dateStr}', '${classTime}', 'rescheduled')">
+                Cancelar Reagendado (Volver a Liberar)
+            </button>
+        `;
+    } else if (status === 'canceled') {
+        info.innerHTML = `Has liberado tu horario de este día. <br>Elige una hora disponible para recuperar/reagendar:`;
+        
+        const CLASS_HOURS = [
+            "5:00 AM", "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM",
+            "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM"
+        ];
+        
+        CLASS_HOURS.forEach(hr => {
+            const spots = getRemainingSpots(dateStr, hr);
+            const isFull = spots <= 0;
+            
+            const btn = document.createElement('button');
+            btn.className = `btn-day-action ${isFull ? 'full-capacity' : ''}`;
+            btn.disabled = isFull;
+            btn.innerHTML = `
+                <span>Clase ${hr}</span>
+                <span class="badge-capacity">${isFull ? 'Lleno' : `${spots} disp.`}</span>
+            `;
+            
+            if (!isFull) {
+                btn.addEventListener('click', () => {
+                    reservarClaseDia(dateStr, hr);
+                });
+            }
+            container.appendChild(btn);
+        });
+    }
+    
+    modal.classList.remove('hidden');
+}
+
+// Cancelar clase del día
+async function cancelarClaseDia(dateStr, hourStr, status) {
+    if (!confirm("¿Deseas liberar/cancelar tu clase para este día?")) return;
+    
+    showLoader();
+    const res = await fetchGAS('cancelarClase', { phone: currentUser.WhatsApp, fecha: dateStr, hora: hourStr, tipo: status });
+    hideLoader();
+    
+    if (res && res.success) {
+        if (status === 'fixed') {
+            appData.reservas.push({ Fecha: dateStr, Hora: hourStr, WhatsApp: currentUser.WhatsApp, Tipo: 'Cancelacion' });
+        } else {
+            appData.reservas = appData.reservas.filter(r => !(r.Fecha === dateStr && r.WhatsApp === currentUser.WhatsApp && r.Tipo === 'Reserva'));
+        }
+        alert("Clase liberada con éxito. Ya puedes elegir otro horario.");
+        document.getElementById('modal-day-options').classList.add('hidden');
+        renderCalendar();
+    } else {
+        alert("Error al liberar clase");
+    }
+}
+
+// Reservar clase en día cancelado
+async function reservarClaseDia(dateStr, hourStr) {
+    if (!confirm(`¿Deseas agendar a las ${hourStr} en este día?`)) return;
+    
+    showLoader();
+    const res = await fetchGAS('reservarClase', { phone: currentUser.WhatsApp, fecha: dateStr, hora: hourStr });
+    hideLoader();
+    
+    if (res && res.success) {
+        appData.reservas.push({ Fecha: dateStr, Hora: hourStr, WhatsApp: currentUser.WhatsApp, Tipo: 'Reserva' });
+        alert("¡Clase reagendada con éxito!");
+        document.getElementById('modal-day-options').classList.add('hidden');
+        renderCalendar();
+    } else {
+        alert(res?.error || "Error al agendar");
+    }
+}
+
+// Render Panel Usuario
 function renderUserPanel() {
     document.getElementById('user-name-display').innerText = `Hola, ${currentUser.Nombre.split(' ')[0]}!`;
     document.getElementById('user-payment-date').innerText = currentUser.FechaProximoPago || '--';
     
-    // Promociones
+    // Fechas de membresía
+    document.getElementById('user-signup-date').innerText = currentUser.FechaIngreso || '--';
+    document.getElementById('user-expire-date').innerText = currentUser.FechaProximoPago || '--';
+    
+    // Promociones (Beneficios H22 Premium)
     const promoContainer = document.getElementById('user-promos-container');
     promoContainer.innerHTML = '';
     appData.promociones.forEach(p => {
@@ -204,56 +470,51 @@ function renderUserPanel() {
         `;
     });
     
-    // Clases
+    // Clases / Horario Fijo
     const classContainer = document.getElementById('user-classes-container');
     classContainer.innerHTML = `
         <div class="class-card">
             <div class="user-info">
-                <h4>Tu Horario Fijo</h4>
+                <h4>Tu Horario Fijo Asignado</h4>
                 <p>${currentUser.HorarioFijo || 'No asignado'}</p>
             </div>
-            <button class="btn-cancel" onclick="alert('Funcionalidad para liberar tu lugar a otro usuario.')">Faltaré</button>
+            <span style="color:var(--neon-green); font-size:0.85rem; font-weight:600;">Lunes a Viernes</span>
         </div>
     `;
+    
+    // Inicializar y dibujar calendario
+    calendarCurrentDate = new Date();
+    renderCalendar();
 }
 
-// Modal Agendar Extra
-document.getElementById('btn-schedule-extra').addEventListener('click', () => {
-    const classContainer = document.getElementById('available-classes-container');
-    classContainer.innerHTML = '';
-    
-    if(appData.clases.length === 0){
-        classContainer.innerHTML = "<p>No hay clases disponibles.</p>";
-    }
-
-    appData.clases.forEach(c => {
-        classContainer.innerHTML += `
-            <div class="class-card" style="margin-bottom: 10px;">
-                <div class="user-info">
-                    <h4>${c.Dia} - ${c.Hora}</h4>
-                    <p>Coach: ${c.Instructor || '--'}</p>
-                </div>
-                <button class="btn-secondary" style="width: auto;" onclick="agendarExtra('${c.ID}')">Agendar</button>
-            </div>
-        `;
-    });
-    
-    document.getElementById('modal-schedule').classList.remove('hidden');
+// Configuración de navegadores del calendario
+document.getElementById('btn-prev-month').addEventListener('click', () => {
+    calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() - 1);
+    renderCalendar();
 });
 
-async function agendarExtra(idClase) {
-    if(!confirm("¿Deseas agendar este horario extra?")) return;
-    
-    showLoader();
-    const res = await fetchGAS('agendarExtra', { phone: currentUser.WhatsApp, idClase });
-    hideLoader();
-    if(res && res.success) {
-        alert("¡Agendado con éxito!");
-        document.getElementById('modal-schedule').classList.add('hidden');
-    } else {
-        alert(res.error || "Error al agendar");
-    }
-}
+document.getElementById('btn-next-month').addEventListener('click', () => {
+    calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + 1);
+    renderCalendar();
+});
+
+// Configuración del Modal de Pago
+document.getElementById('btn-show-payment').addEventListener('click', () => {
+    document.getElementById('modal-payment').classList.remove('hidden');
+});
+
+document.getElementById('btn-close-payment').addEventListener('click', () => {
+    document.getElementById('modal-payment').classList.add('hidden');
+});
+
+document.getElementById('btn-copy-card').addEventListener('click', () => {
+    const cardNumber = document.getElementById('input-card-number').value;
+    navigator.clipboard.writeText(cardNumber).then(() => {
+        alert("Número de cuenta copiado al portapapeles: " + cardNumber);
+    }).catch(err => {
+        console.error("Error al copiar al portapapeles: ", err);
+    });
+});
 
 // Mensaje Difusión (Boton Admin)
 document.getElementById('btn-show-broadcast').addEventListener('click', () => {
@@ -274,7 +535,15 @@ function mockData(action, payload) {
                 }
             } else if (action === 'addUser') {
                 resolve({ success: true, newUser: Object.assign({ID: "U999"}, payload) });
-            } else if (action === 'agendarExtra') {
+            } else if (action === 'cancelarClase') {
+                if (payload.tipo === 'fixed') {
+                    mockDB.reservas.push({ Fecha: payload.fecha, Hora: payload.hora, WhatsApp: payload.phone, Tipo: 'Cancelacion' });
+                } else {
+                    mockDB.reservas = mockDB.reservas.filter(r => !(r.Fecha === payload.fecha && r.WhatsApp === payload.phone && r.Tipo === 'Reserva'));
+                }
+                resolve({ success: true });
+            } else if (action === 'reservarClase') {
+                mockDB.reservas.push({ Fecha: payload.fecha, Hora: payload.hora, WhatsApp: payload.phone, Tipo: 'Reserva' });
                 resolve({ success: true });
             }
         }, 800);
@@ -283,14 +552,18 @@ function mockData(action, payload) {
 
 const mockDB = {
     usuarios: [
-        { Nombre: "Juan Perez (Prueba)", WhatsApp: "123", FechaProximoPago: "2024-05-15", HorarioFijo: "L-V 7:00 AM", Rol: "Usuario" },
-        { Nombre: "Maria Gomez", WhatsApp: "456", FechaProximoPago: "2024-06-10", HorarioFijo: "L-V 8:00 AM", Rol: "Usuario" }
+        { Nombre: "Juan Perez (Prueba)", WhatsApp: "123", FechaIngreso: "2026-05-01", FechaProximoPago: "2026-05-31", HorarioFijo: "L-V 7:00 AM", Rol: "Usuario" },
+        { Nombre: "Maria Gomez", WhatsApp: "456", FechaIngreso: "2026-05-10", FechaProximoPago: "2026-06-09", HorarioFijo: "L-V 8:00 AM", Rol: "Usuario" }
     ],
     clases: [
-        { ID: "C1", Dia: "Lunes", Hora: "6:00 PM", Instructor: "Mike" },
-        { ID: "C2", Dia: "Martes", Hora: "7:00 AM", Instructor: "Sarah" }
+        { ID: "C1", Dia: "Lunes", Hora: "6:00 PM", Clase: "Mike" },
+        { ID: "C2", Dia: "Martes", Hora: "7:00 AM", Clase: "Sarah" }
     ],
     promociones: [
         { Empresa: "Suples Fit", Producto: "Proteina Whey", Precio: "$900", WhatsApp: "9999999", Imagen: "https://images.unsplash.com/photo-1593095948071-474c5cc2989d?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" }
+    ],
+    reservas: [
+        { Fecha: "2026-05-15", Hora: "7:00 AM", WhatsApp: "123", Tipo: "Cancelacion" },
+        { Fecha: "2026-05-15", Hora: "8:00 AM", WhatsApp: "123", Tipo: "Reserva" }
     ]
 };
