@@ -50,23 +50,49 @@
 
         <!-- PANTALLA USUARIO -->
         <main id="view-user" class="view hidden">
-            <div class="user-greeting">
-                <h2 id="user-name-display">Hola, Gorilla!</h2>
-                <p>Tu fecha límite de pago es: <span id="user-payment-date" class="highlight">--</span></p>
-            </div>
-
-            <section class="classes-section">
-                <h3>Tus Clases</h3>
-                <div id="user-classes-container" class="classes-grid">
-                    <!-- Se llena con JS -->
-                </div>
-                <button id="btn-schedule-extra" class="btn-secondary mt-1">Agendar Clase Extra</button>
-            </section>
-
+            <!-- Beneficios H22 Premium en la parte principal -->
             <section class="promotions-section">
                 <h3>Beneficios H22 Premium</h3>
                 <div id="user-promos-container" class="promos-grid">
                     <!-- Se llena con JS -->
+                </div>
+            </section>
+
+            <!-- Datos de membresía y pago -->
+            <div class="user-greeting glass-card">
+                <h2 id="user-name-display">Hola, Gorilla!</h2>
+                <p class="membership-renew-text mt-1" style="font-size: 1.1rem; font-weight: 600;">
+                    Renueva tu membresía H22 el día: <span id="user-payment-date" class="highlight">--</span>
+                </p>
+                <div class="membership-dates" style="margin-top: 10px; font-size: 0.9rem; color: #ccc; display: flex; flex-direction: column; gap: 5px;">
+                    <p>Fecha de Inscripción: <span id="user-signup-date" class="highlight">--</span></p>
+                    <p>Fecha de Renovación: <span id="user-expire-date" class="highlight">--</span></p>
+                </div>
+                <button id="btn-show-payment" class="btn-primary mt-1" style="width: auto; padding: 10px 20px; font-size: 0.95rem;">Ver Datos de Pago</button>
+                <p class="payment-note mt-1" style="font-size: 0.85rem; color: #aaa; font-style: italic;">
+                    Recuerda enviar tu comprobante por WhatsApp para validarlo.
+                </p>
+            </div>
+
+            <section class="classes-section mt-1">
+                <h3>Tus Clases y Agenda</h3>
+                <div id="user-classes-container" class="classes-grid">
+                    <!-- Se llena con JS (ej. horario fijo asignado) -->
+                </div>
+
+                <!-- Calendario Interactivo -->
+                <div class="calendar-wrapper glass-card mt-1">
+                    <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <button id="btn-prev-month" class="btn-calendar-nav" style="background: transparent; color: white; padding: 5px 10px; font-size: 1.2rem; border: none; cursor: pointer;">&lt;</button>
+                        <span id="calendar-month-year" style="font-weight: 800; font-size: 1.1rem; text-transform: capitalize;">Mes Año</span>
+                        <button id="btn-next-month" class="btn-calendar-nav" style="background: transparent; color: white; padding: 5px 10px; font-size: 1.2rem; border: none; cursor: pointer;">&gt;</button>
+                    </div>
+                    <div class="calendar-weekdays" style="display: grid; grid-template-columns: repeat(5, 1fr); text-align: center; font-weight: 600; font-size: 0.85rem; color: var(--neon-green); margin-bottom: 10px;">
+                        <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div>
+                    </div>
+                    <div id="calendar-days" class="calendar-days" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; text-align: center;">
+                        <!-- Generado por JS -->
+                    </div>
                 </div>
             </section>
         </main>
@@ -99,15 +125,42 @@
             </div>
         </div>
 
-        <!-- Agendar Extra -->
-        <div id="modal-schedule" class="modal hidden">
-            <div class="modal-content glass-card">
-                <h3>Agendar Clase Extra</h3>
-                <div id="available-classes-container">
-                    <!-- JS llenara las opciones -->
+        <!-- Modal Datos de Pago BBVA -->
+        <div id="modal-payment" class="modal hidden">
+            <div class="modal-content glass-card" style="text-align: center; max-width: 400px; width: 90%;">
+                <h3>Datos de Pago BBVA</h3>
+                
+                <div style="margin-top: 15px; margin-bottom: 15px;">
+                    <img src="bbva_card.png" alt="Tarjeta BBVA Karim Zepeda" style="width: 100%; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
                 </div>
-                <div class="modal-buttons">
-                    <button class="btn-cancel btn-close-modal mt-1">Cerrar</button>
+                
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <input type="text" id="input-card-number" value="4152314029403972" readonly style="text-align: center; font-family: monospace; font-size: 1.1rem; letter-spacing: 1px; margin-bottom: 5px;">
+                    <span style="font-size: 0.85rem; color: #aaa;">Cuenta CLABE/Tarjeta para transferencias</span>
+                </div>
+                
+                <div class="modal-buttons" style="flex-direction: column; gap: 10px; margin-top: 10px;">
+                    <button id="btn-copy-card" class="btn-primary" style="width: 100%;">Copiar Número de Cuenta</button>
+                    <button id="btn-close-payment" class="btn-cancel" style="width: 100%;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Opciones de Día (Calendario) -->
+        <div id="modal-day-options" class="modal hidden">
+            <div class="modal-content glass-card" style="max-width: 400px; width: 90%;">
+                <h3 id="modal-day-title" style="margin-bottom: 15px; text-align: center;">Clase del Día</h3>
+                
+                <div id="day-status-info" style="margin-bottom: 15px; text-align: center; font-size: 0.95rem;">
+                    <!-- Se llena dinámicamente -->
+                </div>
+                
+                <div id="day-actions-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; padding-right: 5px;">
+                    <!-- Se llena con el botón de cancelar o listado de horarios para reagendar -->
+                </div>
+                
+                <div class="modal-buttons" style="margin-top: 15px;">
+                    <button class="btn-cancel btn-close-modal" style="width: 100%;">Cerrar</button>
                 </div>
             </div>
         </div>
