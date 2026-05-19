@@ -110,15 +110,22 @@ function renderAdminPanel() {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         
         let alertClass = '';
-        let buttonHTML = '';
+        let buttonsHTML = '';
+        
+        if (u.WhatsApp) {
+            const reminderMsg = encodeURIComponent(`Hola ${u.Nombre}, estas en los ultimos días de tu membresia, te invito a no perder tu progreso y continuar por una mejor version de ti`);
+            buttonsHTML += `<a href="https://wa.me/${u.WhatsApp}?text=${reminderMsg}" target="_blank" class="btn-whatsapp" style="background-color: var(--mexican-green); margin-bottom: 5px;">Recordar</a>`;
+        }
         
         // Si faltan 5 días o menos para pagar
         if (diffDays <= 5) {
             alertClass = 'alert';
-            const msg = encodeURIComponent(`Hola ${u.Nombre}, te recordamos que tu mensualidad en H22 Studio vence en ${diffDays} días (${u.FechaProximoPago}). Puedes realizar tu transferencia a la cuenta: [TU CUENTA]. ¡Gracias, Gorilla!`);
-            buttonHTML = `<a href="https://wa.me/${u.WhatsApp}?text=${msg}" target="_blank" class="btn-whatsapp">Cobrar</a>`;
+            if (u.WhatsApp) {
+                const msg = encodeURIComponent(`Hola ${u.Nombre}, te recordamos que tu mensualidad en H22 Studio vence en ${diffDays} días (${u.FechaProximoPago}). Puedes realizar tu transferencia a la cuenta: [TU CUENTA]. ¡Gracias, Gorilla!`);
+                buttonsHTML += `<a href="https://wa.me/${u.WhatsApp}?text=${msg}" target="_blank" class="btn-whatsapp">Cobrar</a>`;
+            }
         } else if (isNaN(diffDays)){
-            buttonHTML = `<span style="color:gray; font-size:0.8rem">Fecha inválida</span>`;
+            buttonsHTML += `<span style="color:gray; font-size:0.8rem; display:block; margin-top:5px;">Fecha inválida</span>`;
         }
 
         container.innerHTML += `
@@ -128,7 +135,7 @@ function renderAdminPanel() {
                     <p>Vence: ${u.FechaProximoPago} (${isNaN(diffDays)?'--':diffDays} días)</p>
                     <p>Cel: ${u.WhatsApp} | Fijo: ${u.HorarioFijo}</p>
                 </div>
-                <div>${buttonHTML}</div>
+                <div style="display: flex; flex-direction: column; align-items: flex-end;">${buttonsHTML}</div>
             </div>
         `;
     });
@@ -250,7 +257,7 @@ async function agendarExtra(idClase) {
 
 // Mensaje Difusión (Boton Admin)
 document.getElementById('btn-show-broadcast').addEventListener('click', () => {
-    alert("Para difundir mensajes masivamente usa tu cuenta de WhatsApp Business o copia los números a una lista de difusión. Próximamente se integrarán enlaces directos aquí.");
+    window.open("https://wa.me/526621286485", "_blank");
 });
 
 // Mock Data para pruebas locales
@@ -276,8 +283,8 @@ function mockData(action, payload) {
 
 const mockDB = {
     usuarios: [
-        { Nombre: "Juan Perez (Prueba)", WhatsApp: "123", FechaProximoPago: "2024-05-15", HorarioFijo: "L-M-V 7:00 AM", Rol: "Usuario" },
-        { Nombre: "Maria Gomez", WhatsApp: "456", FechaProximoPago: "2024-06-10", HorarioFijo: "M-J 8:00 AM", Rol: "Usuario" }
+        { Nombre: "Juan Perez (Prueba)", WhatsApp: "123", FechaProximoPago: "2024-05-15", HorarioFijo: "L-V 7:00 AM", Rol: "Usuario" },
+        { Nombre: "Maria Gomez", WhatsApp: "456", FechaProximoPago: "2024-06-10", HorarioFijo: "L-V 8:00 AM", Rol: "Usuario" }
     ],
     clases: [
         { ID: "C1", Dia: "Lunes", Hora: "6:00 PM", Instructor: "Mike" },
