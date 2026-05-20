@@ -46,6 +46,25 @@
                     <!-- Se llena con JS -->
                 </div>
             </section>
+
+            <section class="admin-calendar-section mt-2">
+                <h3>Calendario de Clases y Asistencias</h3>
+                
+                <!-- Calendario Admin -->
+                <div class="calendar-wrapper glass-card mt-1">
+                    <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <button id="btn-admin-prev-month" class="btn-calendar-nav" style="background: transparent; color: white; padding: 5px 10px; font-size: 1.2rem; border: none; cursor: pointer;">&lt;</button>
+                        <span id="calendar-admin-month-year" style="font-weight: 800; font-size: 1.1rem; text-transform: capitalize;">Mes Año</span>
+                        <button id="btn-admin-next-month" class="btn-calendar-nav" style="background: transparent; color: white; padding: 5px 10px; font-size: 1.2rem; border: none; cursor: pointer;">&gt;</button>
+                    </div>
+                    <div class="calendar-weekdays" style="display: grid; grid-template-columns: repeat(5, 1fr); text-align: center; font-weight: 600; font-size: 0.85rem; color: var(--neon-green); margin-bottom: 10px;">
+                        <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div>
+                    </div>
+                    <div id="calendar-admin-days" class="calendar-days" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; text-align: center;">
+                        <!-- Generado por JS -->
+                    </div>
+                </div>
+            </section>
         </main>
 
         <!-- PANTALLA USUARIO -->
@@ -146,7 +165,7 @@
             </div>
         </div>
 
-        <!-- Modal Opciones de Día (Calendario) -->
+        <!-- Modal Opciones de Día (Calendario Usuario) -->
         <div id="modal-day-options" class="modal hidden">
             <div class="modal-content glass-card" style="max-width: 400px; width: 90%;">
                 <h3 id="modal-day-title" style="margin-bottom: 15px; text-align: center;">Clase del Día</h3>
@@ -157,6 +176,34 @@
                 
                 <div id="day-actions-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; padding-right: 5px;">
                     <!-- Se llena con el botón de cancelar o listado de horarios para reagendar -->
+                </div>
+                
+                <div class="modal-buttons" style="margin-top: 15px;">
+                    <button class="btn-cancel btn-close-modal" style="width: 100%;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Agenda y Asistencia Admin -->
+        <div id="modal-admin-day" class="modal hidden">
+            <div class="modal-content glass-card" style="max-width: 500px; width: 90%;">
+                <h3 id="modal-admin-day-title" style="margin-bottom: 15px; text-align: center;">Asistencia - Día</h3>
+                
+                <div style="display: flex; gap: 15px; height: 350px;">
+                    <!-- Columna izquierda: Horarios -->
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 10px;">
+                        <h4 style="font-size: 0.85rem; color: var(--neon-green); margin-bottom: 5px;">Horarios</h4>
+                        <div id="admin-day-hours-list" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Rellenado por JS -->
+                        </div>
+                    </div>
+                    <!-- Columna derecha: Alumnos inscritos -->
+                    <div style="flex: 1.2; display: flex; flex-direction: column; overflow-y: auto; padding-left: 5px;">
+                        <h4 style="font-size: 0.85rem; color: var(--neon-green); margin-bottom: 5px;">Alumnos Entrenando</h4>
+                        <div id="admin-day-students-list" style="display: flex; flex-direction: column; gap: 5px;">
+                            <!-- Rellenado por JS al hacer clic en un horario -->
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="modal-buttons" style="margin-top: 15px;">
