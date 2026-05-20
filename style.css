@@ -198,7 +198,7 @@ button {
     background-color: var(--mexican-green);
     border-radius: 50%;
 }
-.calendar-day.canceled {
+.calendar-day.canceled, .calendar-day.absent {
     border-color: #ff4d4d;
     background: rgba(255, 77, 77, 0.08);
     text-decoration: line-through;
