@@ -1,5 +1,5 @@
 // ATENCIÓN: Reemplazar por la URL real que te dé Google Apps Script al publicar
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxIeWmiajnAYRzZeU0fQ8VdjZXHyM_gCILmaQWwjtvYAu4LKpvBffs3glCJ6LpqIiebIg/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbz8YiwPrfYGIPQ0jC24TmFhcZsLMjmWTcNrc3yuTICm6f_xVL7KwNByTKO6CVJovw55_g/exec";
 
 // Estado local
 let currentUser = null;
