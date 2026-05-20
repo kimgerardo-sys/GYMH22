@@ -139,6 +139,10 @@ function renderAdminPanel() {
             </div>
         `;
     });
+    
+    // Inicializar y dibujar calendario admin
+    calendarAdminCurrentDate = new Date();
+    renderAdminCalendar();
 }
 
 // Modal Agregar Usuario
@@ -152,6 +156,7 @@ document.querySelectorAll('.btn-close-modal').forEach(btn => {
         modalAddUser.classList.add('hidden');
         document.getElementById('modal-day-options').classList.add('hidden');
         document.getElementById('modal-payment').classList.add('hidden');
+        document.getElementById('modal-admin-day').classList.add('hidden');
     });
 });
 
@@ -217,11 +222,14 @@ function getHourFromSchedule(schedStr) {
     return schedStr;
 }
 
-// Obtener el estado del día para el usuario actual: 'fixed', 'canceled', 'rescheduled'
+// Obtener el estado del día para el usuario actual: 'fixed', 'canceled', 'rescheduled', 'absent'
 function getUserDateStatus(dateStr) {
     const userRes = (appData.reservas || []).filter(r => r.WhatsApp === currentUser.WhatsApp && r.Fecha === dateStr);
     const hasRes = userRes.some(r => r.Tipo === 'Reserva');
     if (hasRes) return 'rescheduled';
+    
+    const hasAbsent = userRes.some(r => r.Tipo === 'NoAsistira');
+    if (hasAbsent) return 'absent';
     
     const hasCancel = userRes.some(r => r.Tipo === 'Cancelacion');
     if (hasCancel) return 'canceled';
@@ -248,7 +256,7 @@ function getRemainingSpots(dateStr, hourStr) {
         if (u.Rol === 'Admin') return;
         const uHour = getHourFromSchedule(u.HorarioFijo);
         if (uHour === hourStr) {
-            const uCancelled = (appData.reservas || []).some(r => r.WhatsApp === u.WhatsApp && r.Fecha === dateStr && r.Tipo === 'Cancelacion');
+            const uCancelled = (appData.reservas || []).some(r => r.WhatsApp === u.WhatsApp && r.Fecha === dateStr && (r.Tipo === 'Cancelacion' || r.Tipo === 'NoAsistira'));
             if (!uCancelled) {
                 fixedCount++;
             }
@@ -337,6 +345,8 @@ function renderCalendar() {
                 dayCell.classList.add('canceled');
             } else if (status === 'rescheduled') {
                 dayCell.classList.add('rescheduled');
+            } else if (status === 'absent') {
+                dayCell.classList.add('absent');
             }
             
             dayCell.addEventListener('click', () => {
@@ -348,7 +358,7 @@ function renderCalendar() {
     }
 }
 
-// Abrir Modal de Opciones del Día
+// Abrir Modal de Opciones del Día (Usuario)
 function openDayModal(date, dateStr, status, classTime) {
     const modal = document.getElementById('modal-day-options');
     const title = document.getElementById('modal-day-title');
@@ -363,19 +373,34 @@ function openDayModal(date, dateStr, status, classTime) {
     if (status === 'fixed') {
         info.innerHTML = `Tienes programado tu horario fijo a las <strong style="color:var(--neon-green)">${classTime}</strong>.`;
         container.innerHTML = `
-            <button class="btn-cancel" style="border-color:#ff4d4d; color:#ff4d4d;" onclick="cancelarClaseDia('${dateStr}', '${classTime}', 'fixed')">
-                Liberar/Cancelar Clase de Hoy
+            <button class="btn-primary" style="background-color: var(--mexican-green); border-color: var(--mexican-green); width: 100%;" onclick="cancelarClaseDia('${dateStr}', '${classTime}', 'fixed')">
+                Liberar/Cancelar Clase Fija de Hoy
             </button>
         `;
     } else if (status === 'rescheduled') {
         info.innerHTML = `Tienes una clase reagendada a las <strong style="color:var(--neon-green)">${classTime}</strong>.`;
         container.innerHTML = `
-            <button class="btn-cancel" style="border-color:#ff4d4d; color:#ff4d4d;" onclick="cancelarClaseDia('${dateStr}', '${classTime}', 'rescheduled')">
+            <button class="btn-cancel" style="border-color:#ff4d4d; color:#ff4d4d; width: 100%;" onclick="cancelarClaseDia('${dateStr}', '${classTime}', 'rescheduled')">
                 Cancelar Reagendado (Volver a Liberar)
             </button>
         `;
     } else if (status === 'canceled') {
-        info.innerHTML = `Has liberado tu horario de este día. <br>Elige una hora disponible para recuperar/reagendar:`;
+        info.innerHTML = `Has liberado tu horario de este día. <br>Elige un nuevo horario para reagendar o confirma tu inasistencia:`;
+        
+        // Botón "No asistiré"
+        const btnNoAttend = document.createElement('button');
+        btnNoAttend.className = 'btn-cancel';
+        btnNoAttend.style = "width: 100%; border-color: #ff4d4d; color: #ff4d4d; font-weight: 800; margin-bottom: 15px; background: rgba(255, 77, 77, 0.05);";
+        btnNoAttend.innerText = 'No asistiré hoy';
+        btnNoAttend.addEventListener('click', () => {
+            confirmarInasistenciaDia(dateStr);
+        });
+        container.appendChild(btnNoAttend);
+        
+        const subTitle = document.createElement('h4');
+        subTitle.style = "font-size: 0.9rem; color: var(--neon-green); margin-bottom: 10px; text-align: left;";
+        subTitle.innerText = "Clases disponibles para reagendar:";
+        container.appendChild(subTitle);
         
         const CLASS_HOURS = [
             "5:00 AM", "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM",
@@ -389,6 +414,7 @@ function openDayModal(date, dateStr, status, classTime) {
             const btn = document.createElement('button');
             btn.className = `btn-day-action ${isFull ? 'full-capacity' : ''}`;
             btn.disabled = isFull;
+            btn.style = "margin-bottom: 5px;";
             btn.innerHTML = `
                 <span>Clase ${hr}</span>
                 <span class="badge-capacity">${isFull ? 'Lleno' : `${spots} disp.`}</span>
@@ -401,6 +427,13 @@ function openDayModal(date, dateStr, status, classTime) {
             }
             container.appendChild(btn);
         });
+    } else if (status === 'absent') {
+        info.innerHTML = `Confirmaste que <strong style="color:#ff4d4d">no asistirás</strong> a ninguna clase este día.`;
+        container.innerHTML = `
+            <button class="btn-primary" style="width: 100%;" onclick="habilitarReprogramacionDia('${dateStr}')">
+                Habilitar Reprogramación
+            </button>
+        `;
     }
     
     modal.classList.remove('hidden');
@@ -420,9 +453,13 @@ async function cancelarClaseDia(dateStr, hourStr, status) {
         } else {
             appData.reservas = appData.reservas.filter(r => !(r.Fecha === dateStr && r.WhatsApp === currentUser.WhatsApp && r.Tipo === 'Reserva'));
         }
-        alert("Clase liberada con éxito. Ya puedes elegir otro horario.");
-        document.getElementById('modal-day-options').classList.add('hidden');
+        alert("Clase liberada con éxito. Selecciona una nueva clase o confirma tu inasistencia.");
+        
+        // Actualizar UI
         renderCalendar();
+        
+        // Reabrir modal en modo cancelado
+        openDayModal(new Date(`${dateStr}T12:00:00`), dateStr, 'canceled', '');
     } else {
         alert("Error al liberar clase");
     }
@@ -443,6 +480,50 @@ async function reservarClaseDia(dateStr, hourStr) {
         renderCalendar();
     } else {
         alert(res?.error || "Error al agendar");
+    }
+}
+
+// Confirmar inasistencia completa para el día
+async function confirmarInasistenciaDia(dateStr) {
+    if (!confirm("¿Confirmas que no asistirás a ninguna clase en este día? Tu espacio quedará liberado.")) return;
+    
+    showLoader();
+    const res = await fetchGAS('cancelarClase', { phone: currentUser.WhatsApp, fecha: dateStr, hora: '', tipo: 'NoAsistira' });
+    hideLoader();
+    
+    if (res && res.success) {
+        // Eliminar cualquier cancelacion previa en appData.reservas y agregar NoAsistira
+        appData.reservas = (appData.reservas || []).filter(r => !(r.Fecha === dateStr && r.WhatsApp === currentUser.WhatsApp));
+        appData.reservas.push({ Fecha: dateStr, Hora: '', WhatsApp: currentUser.WhatsApp, Tipo: 'NoAsistira' });
+        
+        alert("Inasistencia confirmada con éxito.");
+        document.getElementById('modal-day-options').classList.add('hidden');
+        renderCalendar();
+    } else {
+        alert("Error al confirmar inasistencia");
+    }
+}
+
+// Volver a habilitar reprogramación para un día marcado como inasistencia
+async function habilitarReprogramacionDia(dateStr) {
+    if (!confirm("¿Deseas habilitar la reprogramación para este día?")) return;
+    
+    showLoader();
+    const res = await fetchGAS('cancelarClase', { phone: currentUser.WhatsApp, fecha: dateStr, hora: '', tipo: 'reactivar' });
+    hideLoader();
+    
+    if (res && res.success) {
+        // En el cliente, convertimos el NoAsistira de vuelta a Cancelacion para que puedan agendar
+        appData.reservas = (appData.reservas || []).filter(r => !(r.Fecha === dateStr && r.WhatsApp === currentUser.WhatsApp && r.Tipo === 'NoAsistira'));
+        const uHour = getHourFromSchedule(currentUser.HorarioFijo);
+        appData.reservas.push({ Fecha: dateStr, Hora: uHour, WhatsApp: currentUser.WhatsApp, Tipo: 'Cancelacion' });
+        
+        alert("Reprogramación habilitada. Elige un horario.");
+        
+        renderCalendar();
+        openDayModal(new Date(`${dateStr}T12:00:00`), dateStr, 'canceled', '');
+    } else {
+        alert("Error al habilitar reprogramación");
     }
 }
 
@@ -498,6 +579,17 @@ document.getElementById('btn-next-month').addEventListener('click', () => {
     renderCalendar();
 });
 
+// Configuración de navegadores del calendario admin
+document.getElementById('btn-admin-prev-month').addEventListener('click', () => {
+    calendarAdminCurrentDate.setMonth(calendarAdminCurrentDate.getMonth() - 1);
+    renderAdminCalendar();
+});
+
+document.getElementById('btn-admin-next-month').addEventListener('click', () => {
+    calendarAdminCurrentDate.setMonth(calendarAdminCurrentDate.getMonth() + 1);
+    renderAdminCalendar();
+});
+
 // Configuración del Modal de Pago
 document.getElementById('btn-show-payment').addEventListener('click', () => {
     document.getElementById('modal-payment').classList.remove('hidden');
@@ -521,6 +613,192 @@ document.getElementById('btn-show-broadcast').addEventListener('click', () => {
     window.open("https://wa.me/526621286485", "_blank");
 });
 
+// --- LÓGICA DE CALENDARIO ADMIN ---
+let calendarAdminCurrentDate = new Date();
+
+function renderAdminCalendar() {
+    const calendarDays = document.getElementById('calendar-admin-days');
+    const monthYearDisplay = document.getElementById('calendar-admin-month-year');
+    calendarDays.innerHTML = '';
+    
+    const year = calendarAdminCurrentDate.getFullYear();
+    const month = calendarAdminCurrentDate.getMonth();
+    
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    monthYearDisplay.innerText = `${monthNames[month]} ${year}`;
+    
+    const firstDay = new Date(year, month, 1);
+    const firstDayOfWeek = firstDay.getDay();
+    
+    let padding = 0;
+    if (firstDayOfWeek >= 1 && firstDayOfWeek <= 5) {
+        padding = firstDayOfWeek - 1;
+    } else if (firstDayOfWeek === 0 || firstDayOfWeek === 6) {
+        padding = 0;
+    }
+    
+    for (let i = 0; i < padding; i++) {
+        const emptyCell = document.createElement('div');
+        emptyCell.className = 'calendar-day inactive';
+        calendarDays.appendChild(emptyCell);
+    }
+    
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    for (let d = 1; d <= lastDay; d++) {
+        const currentDate = new Date(year, month, d);
+        const dayOfWeek = currentDate.getDay();
+        
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            continue; // Saltar fines de semana
+        }
+        
+        const dayCell = document.createElement('div');
+        dayCell.className = 'calendar-day';
+        dayCell.innerText = d;
+        
+        const dateStr = formatDateString(currentDate);
+        
+        if (currentDate.getTime() === today.getTime()) {
+            dayCell.classList.add('today');
+        }
+        
+        // Contar el número de alumnos inscritos en este día en total
+        let totalAttending = 0;
+        const CLASS_HOURS = [
+            "5:00 AM", "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM",
+            "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM"
+        ];
+        CLASS_HOURS.forEach(hr => {
+            totalAttending += getStudentsForClass(dateStr, hr).length;
+        });
+        
+        if (totalAttending > 0) {
+            dayCell.classList.add('fixed');
+            const badge = document.createElement('span');
+            badge.style = "font-size: 0.75rem; background: var(--mexican-green); color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; position: absolute; top: -5px; right: -5px;";
+            badge.innerText = totalAttending;
+            dayCell.appendChild(badge);
+        }
+        
+        dayCell.addEventListener('click', () => {
+            openAdminDayModal(currentDate, dateStr);
+        });
+        
+        calendarDays.appendChild(dayCell);
+    }
+}
+
+// Abrir Modal de Asistencias Admin
+let selectedAdminDateStr = '';
+function openAdminDayModal(date, dateStr) {
+    selectedAdminDateStr = dateStr;
+    const modal = document.getElementById('modal-admin-day');
+    const title = document.getElementById('modal-admin-day-title');
+    const hoursContainer = document.getElementById('admin-day-hours-list');
+    const studentsContainer = document.getElementById('admin-day-students-list');
+    
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    title.innerText = date.toLocaleDateString('es-ES', options);
+    
+    hoursContainer.innerHTML = '';
+    studentsContainer.innerHTML = '<p style="color:#aaa; font-size:0.9rem; font-style:italic; text-align:center; margin-top:20px;">Selecciona un horario para ver la lista de alumnos.</p>';
+    
+    const CLASS_HOURS = [
+        "5:00 AM", "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM",
+        "4:00 PM", "5:00 PM", "6:00 PM", "7:00 PM", "8:00 PM"
+    ];
+    
+    CLASS_HOURS.forEach(hr => {
+        const students = getStudentsForClass(dateStr, hr);
+        const count = students.length;
+        
+        const btn = document.createElement('button');
+        btn.className = 'btn-day-action';
+        btn.style = "margin-bottom: 8px; text-align: left; width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px;";
+        btn.innerHTML = `
+            <span>${hr}</span>
+            <span class="badge-capacity" style="background: ${count > 0 ? 'var(--mexican-green)' : 'rgba(255,255,255,0.05)'}; color: ${count > 0 ? 'white' : '#aaa'};">${count}/8</span>
+        `;
+        
+        btn.addEventListener('click', () => {
+            hoursContainer.querySelectorAll('.btn-day-action').forEach(b => {
+                b.style.borderColor = 'rgba(255,255,255,0.1)';
+                b.style.color = 'white';
+            });
+            btn.style.borderColor = 'var(--neon-green)';
+            btn.style.color = 'var(--neon-green)';
+            
+            renderAdminDayStudents(students);
+        });
+        
+        hoursContainer.appendChild(btn);
+    });
+    
+    modal.classList.remove('hidden');
+}
+
+function renderAdminDayStudents(students) {
+    const studentsContainer = document.getElementById('admin-day-students-list');
+    studentsContainer.innerHTML = '';
+    
+    if (students.length === 0) {
+        studentsContainer.innerHTML = '<p style="color:#aaa; font-size:0.9rem; font-style:italic; margin-top:10px; text-align:center;">Ningún alumno registrado en este horario.</p>';
+        return;
+    }
+    
+    students.forEach(st => {
+        const isRescheduled = st.Tipo === 'Reagendado';
+        studentsContainer.innerHTML += `
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; text-align: left; width: 100%;">
+                <div>
+                    <h4 style="margin: 0; font-size: 0.9rem; font-weight:600; color:white;">${st.Nombre}</h4>
+                    <span style="font-size: 0.75rem; color:#aaa;">Cel: ${st.WhatsApp}</span>
+                </div>
+                <span class="badge-capacity" style="font-size:0.7rem; padding:2px 6px; border-radius:4px; background: ${isRescheduled ? 'rgba(57, 255, 20, 0.15)' : 'rgba(0, 104, 71, 0.2)'}; color: ${isRescheduled ? 'var(--neon-green)' : 'var(--mexican-green)'}; border: 1px solid ${isRescheduled ? 'var(--neon-green)' : 'var(--mexican-green)'};">
+                    ${isRescheduled ? 'Reagendado' : 'Fijo'}
+                </span>
+            </div>
+        `;
+    });
+}
+
+function getStudentsForClass(dateStr, hourStr) {
+    const list = [];
+    
+    // 1. Alumnos con Horario Fijo que NO cancelaron hoy ni marcaron "No Asistirá"
+    appData.usuarios.forEach(u => {
+        if (u.Rol === 'Admin') return;
+        const uHour = getHourFromSchedule(u.HorarioFijo);
+        if (uHour === hourStr) {
+            const hasCancelled = (appData.reservas || []).some(r => 
+                r.WhatsApp === u.WhatsApp && 
+                r.Fecha === dateStr && 
+                (r.Tipo === 'Cancelacion' || r.Tipo === 'NoAsistira')
+            );
+            if (!hasCancelled) {
+                list.push({ Nombre: u.Nombre, WhatsApp: u.WhatsApp, Tipo: 'Fijo' });
+            }
+        }
+    });
+    
+    // 2. Alumnos con Reservas (Reagendados) hoy para este horario
+    (appData.reservas || []).forEach(r => {
+        if (r.Fecha === dateStr && r.Hora === hourStr && r.Tipo === 'Reserva') {
+            const u = appData.usuarios.find(user => user.WhatsApp === r.WhatsApp);
+            list.push({ 
+                Nombre: u ? u.Nombre : `Tel: ${r.WhatsApp}`, 
+                WhatsApp: r.WhatsApp, 
+                Tipo: 'Reagendado' 
+            });
+        }
+    });
+    
+    return list;
+}
+
 // Mock Data para pruebas locales
 function mockData(action, payload) {
     return new Promise(resolve => {
@@ -538,8 +816,16 @@ function mockData(action, payload) {
             } else if (action === 'cancelarClase') {
                 if (payload.tipo === 'fixed') {
                     mockDB.reservas.push({ Fecha: payload.fecha, Hora: payload.hora, WhatsApp: payload.phone, Tipo: 'Cancelacion' });
-                } else {
+                } else if (payload.tipo === 'rescheduled') {
                     mockDB.reservas = mockDB.reservas.filter(r => !(r.Fecha === payload.fecha && r.WhatsApp === payload.phone && r.Tipo === 'Reserva'));
+                } else if (payload.tipo === 'NoAsistira') {
+                    mockDB.reservas = mockDB.reservas.filter(r => !(r.Fecha === payload.fecha && r.WhatsApp === payload.phone));
+                    mockDB.reservas.push({ Fecha: payload.fecha, Hora: payload.hora, WhatsApp: payload.phone, Tipo: 'NoAsistira' });
+                } else if (payload.tipo === 'reactivar') {
+                    mockDB.reservas = mockDB.reservas.filter(r => !(r.Fecha === payload.fecha && r.WhatsApp === payload.phone));
+                    const u = mockDB.usuarios.find(user => user.WhatsApp === payload.phone);
+                    const userHour = u ? getHourFromSchedule(u.HorarioFijo) : '';
+                    mockDB.reservas.push({ Fecha: payload.fecha, Hora: userHour, WhatsApp: payload.phone, Tipo: 'Cancelacion' });
                 }
                 resolve({ success: true });
             } else if (action === 'reservarClase') {
