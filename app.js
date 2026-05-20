@@ -1,5 +1,5 @@
 // ATENCIÓN: Reemplazar por la URL real que te dé Google Apps Script al publicar
-const GAS_URL = "https://script.google.com/macros/s/AKfycbzahJ6oGvcAQn8J8ZR8kZl2k8hCYK2KuBMfmIl_D5stNw-F-xb6qkCzH9QbU3SWAk2Q9g/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxIeWmiajnAYRzZeU0fQ8VdjZXHyM_gCILmaQWwjtvYAu4LKpvBffs3glCJ6LpqIiebIg/exec";
 
 // Estado local
 let currentUser = null;
@@ -117,16 +117,19 @@ function renderAdminPanel() {
             buttonsHTML += `<a href="https://wa.me/${u.WhatsApp}?text=${reminderMsg}" target="_blank" class="btn-whatsapp" style="background-color: var(--mexican-green); margin-bottom: 5px;">Recordar</a>`;
         }
         
-        // Si faltan 5 días o menos para pagar
+        // Si faltan 5 días o menos para pagar (o ya venció)
         if (diffDays <= 5) {
             alertClass = 'alert';
             if (u.WhatsApp) {
                 const msg = encodeURIComponent(`Hola ${u.Nombre}, te recordamos que tu mensualidad en H22 Studio vence en ${diffDays} días (${u.FechaProximoPago}). Puedes realizar tu transferencia a la cuenta: [TU CUENTA]. ¡Gracias, Gorilla!`);
-                buttonsHTML += `<a href="https://wa.me/${u.WhatsApp}?text=${msg}" target="_blank" class="btn-whatsapp">Cobrar</a>`;
+                buttonsHTML += `<a href="https://wa.me/${u.WhatsApp}?text=${msg}" target="_blank" class="btn-whatsapp" style="margin-bottom: 5px;">Cobrar</a>`;
             }
         } else if (isNaN(diffDays)){
             buttonsHTML += `<span style="color:gray; font-size:0.8rem; display:block; margin-top:5px;">Fecha inválida</span>`;
         }
+        
+        // Botón Registrar Pago
+        buttonsHTML += `<button class="btn-primary" style="padding: 5px 10px; font-size: 0.8rem; background-color: var(--neon-green); color: var(--bg-black); margin-top: 5px; width: 100%; border: none;" onclick="openRegisterPaymentModal('${u.ID}')">Registrar Pago</button>`;
 
         container.innerHTML += `
             <div class="user-card ${alertClass}">
@@ -157,6 +160,7 @@ document.querySelectorAll('.btn-close-modal').forEach(btn => {
         document.getElementById('modal-day-options').classList.add('hidden');
         document.getElementById('modal-payment').classList.add('hidden');
         document.getElementById('modal-admin-day').classList.add('hidden');
+        document.getElementById('modal-admin-payment').classList.add('hidden');
     });
 });
 
@@ -256,6 +260,18 @@ function getRemainingSpots(dateStr, hourStr) {
         if (u.Rol === 'Admin') return;
         const uHour = getHourFromSchedule(u.HorarioFijo);
         if (uHour === hourStr) {
+            // Verificar si su membresía está vencida en esta fecha
+            let fVence;
+            if(u.FechaProximoPago && u.FechaProximoPago.includes('/')){
+                const [d,m,y] = u.FechaProximoPago.split('/');
+                fVence = `${y}-${m}-${d}`;
+            } else {
+                fVence = u.FechaProximoPago;
+            }
+            if (fVence && dateStr >= fVence) {
+                return; // Expirado para esta fecha (no ocupa cupo)
+            }
+            
             const uCancelled = (appData.reservas || []).some(r => r.WhatsApp === u.WhatsApp && r.Fecha === dateStr && (r.Tipo === 'Cancelacion' || r.Tipo === 'NoAsistira'));
             if (!uCancelled) {
                 fixedCount++;
@@ -327,10 +343,16 @@ function renderCalendar() {
         dayCell.innerText = d;
         
         const dateStr = formatDateString(currentDate);
-        const inActiveRange = currentDate >= signupDate && currentDate < renewDate;
+        const isPastSignup = currentDate >= signupDate;
+        const isExpired = currentDate >= renewDate;
         
-        if (!inActiveRange) {
+        if (!isPastSignup) {
             dayCell.classList.add('inactive');
+        } else if (isExpired) {
+            dayCell.classList.add('expired');
+            dayCell.addEventListener('click', () => {
+                alert(`Tu membresía venció el ${currentUser.FechaProximoPago || '--'}. Por favor, realiza tu pago para continuar agendando tus clases.`);
+            });
         } else {
             if (currentDate.getTime() === today.getTime()) {
                 dayCell.classList.add('today');
@@ -768,11 +790,23 @@ function renderAdminDayStudents(students) {
 function getStudentsForClass(dateStr, hourStr) {
     const list = [];
     
-    // 1. Alumnos con Horario Fijo que NO cancelaron hoy ni marcaron "No Asistirá"
+    // 1. Alumnos con Horario Fijo que NO cancelaron hoy ni marcaron "No Asistirá" y están vigentes hoy
     appData.usuarios.forEach(u => {
         if (u.Rol === 'Admin') return;
         const uHour = getHourFromSchedule(u.HorarioFijo);
         if (uHour === hourStr) {
+            // Verificar vigencia
+            let fVence;
+            if(u.FechaProximoPago && u.FechaProximoPago.includes('/')){
+                const [d,m,y] = u.FechaProximoPago.split('/');
+                fVence = `${y}-${m}-${d}`;
+            } else {
+                fVence = u.FechaProximoPago;
+            }
+            if (fVence && dateStr >= fVence) {
+                return; // Expirado para esta fecha (no asiste)
+            }
+            
             const hasCancelled = (appData.reservas || []).some(r => 
                 r.WhatsApp === u.WhatsApp && 
                 r.Fecha === dateStr && 
@@ -798,6 +832,173 @@ function getStudentsForClass(dateStr, hourStr) {
     
     return list;
 }
+
+// --- REGISTRAR PAGO (ADMIN) ---
+let targetPaymentUser = null;
+
+function openRegisterPaymentModal(userId) {
+    targetPaymentUser = appData.usuarios.find(u => u.ID === userId);
+    if (!targetPaymentUser) return;
+    
+    document.getElementById('admin-payment-user-info').innerHTML = `Registrar pago para <strong>${targetPaymentUser.Nombre}</strong>.<br>Horario fijo actual: <strong style="color:var(--neon-green)">${targetPaymentUser.HorarioFijo}</strong>`;
+    
+    // Calcular nueva fecha de vencimiento (+30 días desde la fecha de vencimiento anterior o desde hoy)
+    let fPago;
+    if (targetPaymentUser.FechaProximoPago && targetPaymentUser.FechaProximoPago.includes('/')) {
+        const [d, m, y] = targetPaymentUser.FechaProximoPago.split('/');
+        fPago = new Date(`${y}-${m}-${d}T12:00:00`);
+    } else if (targetPaymentUser.FechaProximoPago) {
+        fPago = new Date(`${targetPaymentUser.FechaProximoPago}T12:00:00`);
+    }
+    
+    const hoy = new Date();
+    hoy.setHours(12, 0, 0, 0);
+    
+    let baseDate;
+    if (fPago && !isNaN(fPago.getTime())) {
+        baseDate = new Date(fPago.getTime());
+    } else {
+        baseDate = new Date(hoy.getTime());
+    }
+    
+    baseDate.setDate(baseDate.getDate() + 30);
+    const newExpireDateStr = baseDate.toISOString().split('T')[0];
+    document.getElementById('admin-payment-new-date').value = newExpireDateStr;
+    
+    // Calcular ocupación de horarios fijos activos
+    const CLASS_HOURS = [
+        "L-V 5:00 AM", "L-V 6:00 AM", "L-V 7:00 AM", "L-V 8:00 AM", "L-V 9:00 AM",
+        "L-V 4:00 PM", "L-V 5:00 PM", "L-V 6:00 PM", "L-V 7:00 PM", "L-V 8:00 PM"
+    ];
+    
+    const scheduleCounts = {};
+    CLASS_HOURS.forEach(h => scheduleCounts[h] = 0);
+    
+    appData.usuarios.forEach(u => {
+        if (u.Rol === 'Admin' || u.WhatsApp === targetPaymentUser.WhatsApp) return;
+        
+        let fVence;
+        if (u.FechaProximoPago && u.FechaProximoPago.includes('/')) {
+            const [d, m, y] = u.FechaProximoPago.split('/');
+            fVence = new Date(`${y}-${m}-${d}T23:59:59`);
+        } else if (u.FechaProximoPago) {
+            fVence = new Date(`${u.FechaProximoPago}T23:59:59`);
+        }
+        
+        const isExpired = fVence && fVence < new Date();
+        if (!isExpired && u.HorarioFijo && CLASS_HOURS.includes(u.HorarioFijo)) {
+            scheduleCounts[u.HorarioFijo]++;
+        }
+    });
+    
+    // Llenar selector
+    const select = document.getElementById('admin-payment-schedule');
+    select.innerHTML = '';
+    
+    let currentScheduleIsFull = false;
+    CLASS_HOURS.forEach(h => {
+        const count = scheduleCounts[h] || 0;
+        const available = 8 - count;
+        const isFull = available <= 0;
+        
+        const option = document.createElement('option');
+        option.value = h;
+        option.innerText = `${h} (${isFull ? 'Lleno - 0 disp.' : `${available} disp.`})`;
+        if (isFull) option.style.color = '#ff4d4d';
+        
+        if (h === targetPaymentUser.HorarioFijo) {
+            option.selected = true;
+            if (isFull) currentScheduleIsFull = true;
+        }
+        select.appendChild(option);
+    });
+    
+    const warning = document.getElementById('admin-payment-schedule-warning');
+    if (currentScheduleIsFull) {
+        warning.style.display = 'block';
+        warning.innerText = `⚠️ Su horario fijo actual (${targetPaymentUser.HorarioFijo}) ya no tiene cupos disponibles. Por favor, selecciona otro horario.`;
+    } else {
+        warning.style.display = 'none';
+    }
+    
+    select.onchange = () => {
+        const selectedSchedule = select.value;
+        const count = scheduleCounts[selectedSchedule] || 0;
+        if (count >= 8) {
+            warning.style.display = 'block';
+            warning.innerText = `⚠️ El horario seleccionado (${selectedSchedule}) está lleno. Selecciona uno con cupos libres para poder guardar.`;
+        } else {
+            warning.style.display = 'none';
+        }
+    };
+    
+    document.getElementById('modal-admin-payment').classList.remove('hidden');
+}
+
+document.getElementById('btn-admin-save-payment').addEventListener('click', async () => {
+    if (!targetPaymentUser) return;
+    
+    const newExpireDate = document.getElementById('admin-payment-new-date').value;
+    const selectedSchedule = document.getElementById('admin-payment-schedule').value;
+    
+    if (!newExpireDate || !selectedSchedule) return alert("Por favor completa los campos.");
+    
+    // Validar capacidad actual
+    const CLASS_HOURS = [
+        "L-V 5:00 AM", "L-V 6:00 AM", "L-V 7:00 AM", "L-V 8:00 AM", "L-V 9:00 AM",
+        "L-V 4:00 PM", "L-V 5:00 PM", "L-V 6:00 PM", "L-V 7:00 PM", "L-V 8:00 PM"
+    ];
+    const scheduleCounts = {};
+    CLASS_HOURS.forEach(h => scheduleCounts[h] = 0);
+    appData.usuarios.forEach(u => {
+        if (u.Rol === 'Admin' || u.WhatsApp === targetPaymentUser.WhatsApp) return;
+        
+        let fVence;
+        if (u.FechaProximoPago && u.FechaProximoPago.includes('/')) {
+            const [d, m, y] = u.FechaProximoPago.split('/');
+            fVence = new Date(`${y}-${m}-${d}T23:59:59`);
+        } else if (u.FechaProximoPago) {
+            fVence = new Date(`${u.FechaProximoPago}T23:59:59`);
+        }
+        
+        const isExpired = fVence && fVence < new Date();
+        if (!isExpired && u.HorarioFijo && CLASS_HOURS.includes(u.HorarioFijo)) {
+            scheduleCounts[u.HorarioFijo]++;
+        }
+    });
+    
+    if ((scheduleCounts[selectedSchedule] || 0) >= 8) {
+        alert("No se puede registrar este horario porque ya superó el cupo máximo de 8 alumnos.");
+        return;
+    }
+    
+    // Nueva fecha de inicio (FechaIngreso) es el anterior vencimiento (FechaProximoPago)
+    let fIngresoStr = targetPaymentUser.FechaProximoPago;
+    if (!fIngresoStr) {
+        fIngresoStr = new Date().toISOString().split('T')[0];
+    }
+    
+    showLoader();
+    const res = await fetchGAS('renewPayment', {
+        phone: targetPaymentUser.WhatsApp,
+        fechaIngreso: fIngresoStr,
+        fechaProximoPago: newExpireDate,
+        horarioFijo: selectedSchedule
+    });
+    hideLoader();
+    
+    if (res && res.success) {
+        alert("Pago registrado con éxito y membresía extendida.");
+        targetPaymentUser.FechaIngreso = fIngresoStr;
+        targetPaymentUser.FechaProximoPago = newExpireDate;
+        targetPaymentUser.HorarioFijo = selectedSchedule;
+        
+        document.getElementById('modal-admin-payment').classList.add('hidden');
+        renderAdminPanel();
+    } else {
+        alert(res?.error || "Error al registrar el pago.");
+    }
+});
 
 // Mock Data para pruebas locales
 function mockData(action, payload) {
@@ -830,6 +1031,14 @@ function mockData(action, payload) {
                 resolve({ success: true });
             } else if (action === 'reservarClase') {
                 mockDB.reservas.push({ Fecha: payload.fecha, Hora: payload.hora, WhatsApp: payload.phone, Tipo: 'Reserva' });
+                resolve({ success: true });
+            } else if (action === 'renewPayment') {
+                const u = mockDB.usuarios.find(user => user.WhatsApp === payload.phone);
+                if (u) {
+                    u.FechaIngreso = payload.fechaIngreso;
+                    u.FechaProximoPago = payload.fechaProximoPago;
+                    u.HorarioFijo = payload.horarioFijo;
+                }
                 resolve({ success: true });
             }
         }, 800);
