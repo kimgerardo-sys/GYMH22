@@ -212,6 +212,34 @@
             </div>
         </div>
 
+        <!-- Modal Registrar Pago / Actualizar Horario Fijo -->
+        <div id="modal-admin-payment" class="modal hidden">
+            <div class="modal-content glass-card" style="max-width: 400px; width: 90%;">
+                <h3 style="margin-bottom: 15px; text-align: center;">Registrar Pago</h3>
+                <p id="admin-payment-user-info" style="font-size: 0.95rem; margin-bottom: 15px; text-align: center; color: #ccc;">---</p>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="font-size: 0.85rem; color: #aaa; display: block; margin-bottom: 5px;">Nueva Fecha de Vencimiento (+30 días):</label>
+                    <input type="date" id="admin-payment-new-date" style="margin-bottom: 10px;">
+                </div>
+                
+                <div id="admin-payment-schedule-container" style="margin-bottom: 15px;">
+                    <label style="font-size: 0.85rem; color: #aaa; display: block; margin-bottom: 5px;">Horario Fijo Seleccionado:</label>
+                    <select id="admin-payment-schedule">
+                        <!-- Rellenado por JS -->
+                    </select>
+                    <p id="admin-payment-schedule-warning" style="font-size: 0.85rem; color: #ff4d4d; margin-top: 5px; font-style: italic; display: none;">
+                        ⚠️ El horario actual está lleno. Selecciona otro horario.
+                    </p>
+                </div>
+                
+                <div class="modal-buttons" style="margin-top: 15px;">
+                    <button id="btn-admin-save-payment" class="btn-primary" style="width: 100%; background-color: var(--neon-green); color: var(--bg-black);">Confirmar Pago y Horario</button>
+                    <button class="btn-cancel btn-close-modal" style="width: 100%; margin-top: 5px;">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Spinner / Loader -->
