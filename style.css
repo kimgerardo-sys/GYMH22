@@ -204,6 +204,12 @@ button {
     text-decoration: line-through;
     color: #ff6666;
 }
+.calendar-day.expired {
+    border-color: #ff4d4d;
+    background: rgba(255, 77, 77, 0.25);
+    color: #ff4d4d;
+    cursor: not-allowed;
+}
 .calendar-day.rescheduled {
     border-color: var(--neon-green);
     background: rgba(57, 255, 20, 0.1);
